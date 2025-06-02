@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "LeetCode Sound FX",
+  "version": "1.0",
+  "description": "Play custom sound when a LeetCode solution is accepted.",
+  "permissions": ["storage", "activeTab"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://leetcode.com/problems/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["*.mp3"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
