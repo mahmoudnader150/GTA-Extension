@@ -1,22 +1,24 @@
 {
   "manifest_version": 3,
-  "name": "LeetCode Sound FX",
-  "version": "1.0",
-  "description": "Play custom sound when a LeetCode solution is accepted.",
-  "permissions": ["storage", "activeTab"],
+  "name": "LeetCode GTA Mission Control",
+  "version": "2.0.0",
+  "description": "Experience LeetCode like GTA with mission sounds and notifications",
+  "permissions": ["activeTab", "storage"],
   "action": {
-    "default_popup": "popup.html"
+    
+    "default_title": "LeetCode GTA Settings"
   },
   "content_scripts": [
     {
-      "matches": ["*://leetcode.com/problems/*"],
-      "js": ["content.js"]
+      "matches": ["*://leetcode.com/*", "*://*.leetcode.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["*.mp3"],
-      "matches": ["<all_urls>"]
+      "resources": ["assets/passed.mp3", "assets/wasted.mp3"],
+      "matches": ["*://leetcode.com/*", "*://*.leetcode.com/*"]
     }
   ]
 }

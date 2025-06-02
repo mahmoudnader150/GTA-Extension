@@ -1,63 +1,171 @@
-function playSound(fileName) {
-  const audio = new Audio(chrome.runtime.getURL(`assets/${fileName}`));
-  audio.play();
+class GTALeetCodeDetector {
+    constructor() {
+        this.config = {
+            volume: 0.75,
+            cooldownTime: 4000,
+            maxRetries: 3
+        };
+        
+        this.state = {
+            lastResultHash: '',
+            isOnCooldown: false,
+            processedResults: new Set()
+        };
+        
+        this.selectors = {
+            primary: '[data-e2e-locator="submission-result"]',
+            secondary: '.submission-result, [class*="result"], [class*="status"]',
+            modal: '[role="dialog"], .modal, [class*="modal"]',
+            notification: '[class*="notification"], [class*="alert"], [class*="message"]'
+        };
+        
+        this.patterns = {
+            success: /accepted|correct|passed|success/i,
+            failure: /wrong\s+answer|time\s+limit|memory\s+limit|runtime\s+error|compilation\s+error|presentation\s+error|segmentation\s+fault/i
+        };
+        
+        this.initialize();
+    }
+
+    initialize() {
+        this.setupMultipleObservers();
+        this.setupKeyboardShortcuts();
+        this.logStatus('🎮 GTA LeetCode Extension - Fixed Version Active');
+    }
+
+    logStatus(message) {
+        console.log(`%c${message}`, 'color: #ff6b35; font-weight: bold;');
+    }
+
+    createHash(text) {
+        // Removed Date.now() for consistent hash
+        const cleanText = text.replace(/\s+/g, ' ').trim().toLowerCase();
+        return btoa(cleanText).slice(0, 12);
+    }
+
+    async playSound(type, retryCount = 0) {
+        if (this.state.isOnCooldown || retryCount >= this.config.maxRetries) return;
+
+        try {
+            const audio = new Audio(chrome.runtime.getURL(`assets/${type}.mp3`));
+            audio.volume = this.config.volume;
+
+            await new Promise((resolve, reject) => {
+                audio.oncanplaythrough = resolve;
+                audio.onerror = reject;
+                audio.load();
+            });
+
+            await audio.play();
+            this.setCooldown();
+            this.logStatus(`🔊 Playing ${type} sound`);
+
+        } catch (error) {
+            this.logStatus(`❌ Audio error (attempt ${retryCount + 1}): ${error.message}`);
+            if (retryCount < this.config.maxRetries - 1) {
+                setTimeout(() => this.playSound(type, retryCount + 1), 500);
+            }
+        }
+    }
+
+    setCooldown() {
+        this.state.isOnCooldown = true;
+        setTimeout(() => {
+            this.state.isOnCooldown = false;
+        }, this.config.cooldownTime);
+    }
+
+    extractResultText() {
+        const sources = [
+            () => document.querySelector(this.selectors.primary)?.textContent,
+            () => {
+                const elements = document.querySelectorAll(this.selectors.secondary);
+                for (const el of elements) {
+                    const text = el.textContent.trim();
+                    if (text && (this.patterns.success.test(text) || this.patterns.failure.test(text))) {
+                        return text;
+                    }
+                }
+                return null;
+            }
+        ];
+
+        for (const source of sources) {
+            try {
+                const text = source();
+                if (text && text.trim()) return text.trim();
+            } catch (error) {
+                continue;
+            }
+        }
+
+        return null;
+    }
+
+    processResult() {
+        const resultText = this.extractResultText();
+        if (!resultText) return;
+
+        const resultHash = this.createHash(resultText);
+
+        if (this.state.processedResults.has(resultHash)) {
+            this.logStatus('⏭ Skipping duplicate result: ' + resultText.slice(0, 30));
+            return;
+        }
+
+        this.state.processedResults.add(resultHash);
+        this.state.lastResultHash = resultHash;
+
+        if (this.state.processedResults.size > 10) {
+            const resultsArray = Array.from(this.state.processedResults);
+            this.state.processedResults = new Set(resultsArray.slice(-10));
+        }
+
+        if (this.patterns.success.test(resultText)) {
+            this.playSound('passed');
+            this.logStatus('✅ SUCCESS DETECTED: ' + resultText.slice(0, 50));
+        } else if (this.patterns.failure.test(resultText)) {
+            this.playSound('wasted');
+            this.logStatus('❌ FAILURE DETECTED: ' + resultText.slice(0, 50));
+        }
+    }
+
+    setupMultipleObservers() {
+        let observerTimeout;
+
+        const mainObserver = new MutationObserver(() => {
+            clearTimeout(observerTimeout);
+            observerTimeout = setTimeout(() => this.processResult(), 200);
+        });
+
+        mainObserver.observe(document.body, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['class', 'data-e2e-locator']
+        });
+
+        setInterval(() => this.processResult(), 5000);
+
+        window.addEventListener('focus', () => {
+            setTimeout(() => this.processResult(), 1000);
+        });
+
+        setTimeout(() => this.processResult(), 2000);
+    }
+
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.shiftKey && e.key === 'G') {
+                e.preventDefault();
+                this.state.processedResults.clear();
+                this.state.lastResultHash = '';
+                this.processResult();
+                this.logStatus('🔄 Manual trigger activated');
+            }
+        });
+    }
 }
 
-function showMissionPassedEffect() {
-  // Create overlay
-  const overlay = document.createElement('div');
-  overlay.style.position = 'fixed';
-  overlay.style.top = 0;
-  overlay.style.left = 0;
-  overlay.style.width = '100vw';
-  overlay.style.height = '100vh';
-  overlay.style.display = 'flex';
-  overlay.style.justifyContent = 'center';
-  overlay.style.alignItems = 'center';
-  overlay.style.zIndex = 9999;
-  overlay.style.pointerEvents = 'none';
-  overlay.style.background = 'rgba(0,0,0,0)';
-
-  // Create text
-  const text = document.createElement('div');
-  text.textContent = 'MISSION PASSED!';
-  text.style.fontFamily = 'Impact, Arial Black, sans-serif';
-  text.style.fontSize = '5vw';
-  text.style.color = '#FFD700';
-  text.style.textShadow = '2px 2px 8px #000, 0 0 20px #FF8C00';
-  text.style.letterSpacing = '0.2em';
-  text.style.animation = 'mp-fade 2.5s ease-out';
-
-  overlay.appendChild(text);
-  document.body.appendChild(overlay);
-
-  // Remove after animation
-  setTimeout(() => {
-    overlay.remove();
-  }, 2500);
-}
-
-// Add keyframes for fade effect
-const style = document.createElement('style');
-style.textContent = `@keyframes mp-fade { 0% { opacity: 0; transform: scale(0.8); } 10% { opacity: 1; transform: scale(1.05); } 80% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.1); } }`;
-document.head.appendChild(style);
-
-const observer = new MutationObserver(() => {
-  // Check for Accepted/Passed
-  const accepted = document.querySelector('.text-green-s');
-  if (accepted && accepted.textContent.includes("Accepted")) {
-    playSound('passed.mp3');
-    showMissionPassedEffect();
-    observer.disconnect();
-    return;
-  }
-  // Check for Wrong Answer
-  const wrong = Array.from(document.querySelectorAll('div')).find(div => div.textContent && div.textContent.includes('Wrong Answer'));
-  if (wrong) {
-    playSound('wasted.mp3');
-    observer.disconnect();
-    return;
-  }
-});
-
-observer.observe(document.body, { childList: true, subtree: true });
+// Initialize the detector
+new GTALeetCodeDetector();
